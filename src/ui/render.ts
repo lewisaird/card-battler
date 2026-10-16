@@ -1,6 +1,6 @@
 import { cardText, creatureCard, getCard, isDirectlyPlayable } from '../engine/cards';
 import { STARTER_DECKS, type DeckDef } from '../engine/decks';
-import { attackTargets, hasKeyword, keywordsOf, LANES, other, power, synergyActive } from '../engine/game';
+import { attackTargets, hasKeyword, isExposed, keywordsOf, LANES, other, power, synergyActive } from '../engine/game';
 import { CRYSTAL_HP, LANE_NAMES } from '../engine/rules';
 import { RIVALS, type Rival } from '../engine/rivals';
 import type { Card, Creature, GameState, LaneIndex, PlayerId, Row } from '../engine/types';
@@ -69,6 +69,7 @@ export function renderMenu(chosenDeck: DeckDef | null, customDecks: { deck: Deck
       <div class="menu">
         <h1>Card Battler</h1>
         <p class="tagline">Prototype v0.1 — destroy 2 of your rival's 3 crystals to win.</p>
+        <div class="buttons"><button class="secondary" data-action="open-guide">📖 How to play</button></div>
         <h2>1. Choose your deck</h2>
         <h3>Your decks</h3>
         <div class="deck-list">${custom || '<p class="small">No custom decks yet.</p>'}</div>
@@ -170,8 +171,15 @@ function boardCreature(state: GameState, player: PlayerId, lane: LaneIndex, row:
       <div class="board-body">
         <div class="pl ${plClass}">${pl}</div>
         <div><div class="meta">${stars(card.stars)} ${card.type}</div>${keywords.length ? `<div class="kw">${keywords.join(' · ')}</div>` : ''}</div>
+        ${stanceBadge(state, player, c)}
       </div>
     </div>`;
+}
+
+function stanceBadge(state: GameState, player: PlayerId, c: Creature): string {
+  return isExposed(state, player, c)
+    ? '<span class="stance exposed" title="Exposed: it attacked, so attackers strike it first until its next turn">Exposed</span>'
+    : '<span class="stance guard" title="Guarding: if attacked, it strikes first">Guard</span>';
 }
 
 // ---------- Board ----------
@@ -305,6 +313,11 @@ export function renderInspector(state: GameState, key: string | null): string {
   if (c.granted.length) facts.push(`Granted: ${c.granted.join(', ')}`);
   if (keywordsOf(c).includes('Shield')) facts.push(c.shield ? '🛡️ Shield ready' : 'Shield used up');
   if (card.synergy) facts.push(synergyActive(side, row as Row) ? '🔗 Synergy active' : 'Synergy inactive (needs a matching partner in this lane)');
+  facts.push(
+    isExposed(state, player, c)
+      ? '<b>Exposed</b>: it attacked, so attackers strike it first until its next turn'
+      : '<b>Guarding</b>: if attacked, it strikes first',
+  );
   if (player === state.active && state.phase !== 'over') {
     if (c.attackedTurn === state.turn) facts.push('Has attacked this turn');
     else if (c.playedTurn === state.turn && !hasKeyword(c, 'Rush')) facts.push('💤 Just played: can attack next turn');
@@ -356,7 +369,10 @@ export function renderGame(view: GameView): string {
         <button data-action="end-turn" ${myTurn ? '' : 'disabled'}>End turn</button>
         <div class="inspector" id="inspector">${renderInspector(state, view.inspect)}</div>
         <div class="log" id="log">${log}</div>
-        <button data-action="menu" class="secondary small-btn">Quit to menu</button>
+        <div class="buttons sidebar-buttons">
+          <button data-action="open-guide" class="secondary small-btn">📖 How to play</button>
+          <button data-action="menu" class="secondary small-btn">Quit to menu</button>
+        </div>
       </aside>
       <section class="hand">${hand || '<span class="small">Your hand is empty.</span>'}</section>
       ${overlay(view)}

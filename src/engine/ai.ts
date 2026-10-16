@@ -1,5 +1,5 @@
 import { creatureCard, getCard, isDirectlyPlayable } from './cards';
-import { applyAction, getLegalActions, keywordsOf, LANES, other, power, ROWS, synergyActive } from './game';
+import { applyAction, getLegalActions, isExposed, keywordsOf, LANES, other, power, ROWS, synergyActive } from './game';
 import type { Action, GameState, PlayerId } from './types';
 
 /** How a rival weighs its options. 1 is neutral for the multipliers. */
@@ -85,6 +85,9 @@ function sideScore(state: GameState, player: PlayerId, crystalWeight: number, pr
       const c = side[row];
       if (!c) continue;
       score += power(c) + keywordsOf(c).length * 0.5 + (c.shield ? 1 : 0) + (c.equipment ? 0.5 : 0);
+      // An Exposed front creature can be hit first by the enemy creature opposite it.
+      const foe = enemy.lanes[lane].front;
+      if (row === 'front' && foe && isExposed(state, player, c)) score -= Math.min(power(foe), power(c)) * 0.8;
       if (synergyActive(side, row)) score += 1;
       const card = creatureCard(c.cardId);
       if (card.ability?.trigger === 'startOfTurn') score += 1;

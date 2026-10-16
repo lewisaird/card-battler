@@ -1201,3 +1201,142 @@ button:disabled {
 .tag[data-inspect] {
   cursor: help;
 }
+
+/* ---------- Stances ---------- */
+
+.stance {
+  margin-left: auto;
+  align-self: flex-end;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: help;
+}
+
+.stance.guard {
+  background: rgba(96, 165, 250, 0.25);
+  color: #bfdbfe;
+}
+
+.stance.exposed {
+  background: rgba(248, 113, 113, 0.3);
+  color: #fecaca;
+}
+
+/* ---------- How to play ---------- */
+
+.guide-overlay {
+  z-index: 30;
+}
+
+.guide {
+  max-width: 720px;
+  max-height: calc(100vh - 32px);
+}
+
+.guide-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: sticky;
+  top: -20px;
+  margin: -20px -20px 0;
+  padding: 16px 20px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.guide-head h2 {
+  margin: 0;
+}
+
+.guide section {
+  margin-top: 18px;
+  line-height: 1.55;
+  font-size: 15px;
+}
+
+.guide h3 {
+  margin: 0 0 6px;
+  font-size: 17px;
+}
+
+.guide p,
+.guide ul,
+.guide ol {
+  margin: 6px 0;
+}
+
+.guide li {
+  margin: 4px 0;
+}
+
+.guide .ribbon,
+.guide .stance {
+  display: inline-block;
+  margin: 0 4px 0 0;
+  vertical-align: middle;
+}
+
+.tip {
+  background: rgba(240, 180, 41, 0.12);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.guide-diagram {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 360px;
+  margin: 10px 0;
+  font-size: 12px;
+}
+
+.gd-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+
+.gd-row span {
+  text-align: center;
+  padding: 6px;
+  border-radius: 6px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.gd-row.enemy span {
+  border-color: rgba(248, 113, 113, 0.4);
+}
+
+.gd-divider {
+  text-align: center;
+  color: var(--accent);
+  padding: 2px;
+}
+
+.keywords {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 12px;
+  margin: 6px 0;
+}
+
+.keywords dt {
+  font-weight: 800;
+  color: var(--accent);
+}
+
+.keywords dd {
+  margin: 0;
+}
+
+.sidebar-buttons {
+  justify-content: space-between;
+}

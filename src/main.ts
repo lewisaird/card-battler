@@ -2,13 +2,14 @@ import './style.css';
 import { chooseAction, chooseMulligan } from './engine/ai';
 import { creatureCard, getCard, isDirectlyPlayable } from './engine/cards';
 import { copyLimit, deckProblems, STARTER_DECKS, type DeckDef } from './engine/decks';
-import { applyAction, createGame, getLegalActions, other } from './engine/game';
+import { applyAction, createGame, getLegalActions, isExposed, other, power } from './engine/game';
 import { pickLine, RIVALS, type LineKey, type Rival } from './engine/rivals';
 import type { Action, GameEvent, GameState, LaneIndex, PlayerId, Row, Target } from './engine/types';
 import { DECK_SIZE } from './engine/rules';
 import { loadCustomDecks, saveCustomDecks, toDeckDef, type CustomDeck } from './storage';
 import { renderBuilder, type BuilderState } from './ui/builder';
 import { playEffects } from './ui/effects';
+import { renderGuide } from './ui/guide';
 import { renderGame, renderInspector, renderMenu, type GameView } from './ui/render';
 
 const ME: PlayerId = 0;
@@ -32,6 +33,18 @@ let seenEvents = 0;
 let animatedEvents = 0;
 let lastActionRevealed = false;
 let inspectKey: string | null = null;
+let showGuide = firstVisit();
+
+/** Show the guide automatically on someone's first visit. */
+function firstVisit(): boolean {
+  try {
+    if (localStorage.getItem('card-battler.seen-guide')) return false;
+    localStorage.setItem('card-battler.seen-guide', '1');
+    return true;
+  } catch {
+    return false;
+  }
+}
 let customDecks: CustomDeck[] = loadCustomDecks();
 let builder: BuilderState | null = null;
 let selection: Selection = null;
@@ -104,13 +117,54 @@ function hintFor(legal: Action[]): string {
     : 'Combat phase: attack with your ready creatures (⚔️), then end your turn.';
 }
 
+// ---------- Attack preview ----------
+
+/** Describe what an attack would do, by trying it on a copy of the game (without enemy traps). */
+function previewAttack(action: Extract<Action, { type: 'attack' }>): string {
+  if (!state) return '';
+  const sim: GameState = structuredClone({ ...state, log: [], events: [] });
+  const enemy = sim.players[RIVAL].lanes[action.targetLane];
+  const realTrap = state.players[RIVAL].lanes[action.targetLane].trap;
+  enemy.trap = null;
+  const attacker = state.players[ME].lanes[action.lane][action.row]!;
+  const front = state.players[RIVAL].lanes[action.targetLane].front;
+  const back = state.players[RIVAL].lanes[action.targetLane].back;
+  const crystalBefore = enemy.crystal;
+  applyAction(sim, action);
+
+  const after = (uid: number, player: PlayerId) => {
+    for (const side of sim.players[player].lanes) for (const c of [side.front, side.back]) if (c?.uid === uid) return power(c);
+    return 0;
+  };
+  const change = (name: string, before: number, now: number) =>
+    now <= 0 ? `<b>${name}</b> is destroyed` : now === before ? `<b>${name}</b> stays at ${now}` : `<b>${name}</b> ${before} → ${now}`;
+  const name = (id: string) => getCard(id).name;
+
+  const lines: string[] = [];
+  const ranged = action.row === 'back';
+  if (front && !ranged) {
+    lines.push(
+      isExposed(state, RIVAL, front)
+        ? `${name(front.cardId)} is <b>Exposed</b>: you strike first.`
+        : `${name(front.cardId)} is <b>Guarding</b>: it strikes first.`,
+    );
+  }
+  lines.push(change(name(attacker.cardId), power(attacker), after(attacker.uid, ME)));
+  if (front) lines.push(change(name(front.cardId), power(front), after(front.uid, RIVAL)));
+  if (back && after(back.uid, RIVAL) !== power(back)) lines.push(change(name(back.cardId), power(back), after(back.uid, RIVAL)));
+  const crystalDamage = crystalBefore - sim.players[RIVAL].lanes[action.targetLane].crystal;
+  if (crystalDamage > 0) lines.push(`Their crystal takes <b>${crystalDamage}</b>`);
+  if (realTrap) lines.push('⚠️ A face-down trap is set in this lane.');
+  return `⚔️ <b>If you attack:</b><br>${lines.join('<br>')}`;
+}
+
 // ---------- Rendering ----------
 
 /** Replace the page while keeping the scroll position of scrollable panels. */
 function replacePage(html: string) {
   const scrolls = ['pool-grid', 'deck-rows'].map((id) => [id, document.getElementById(id)?.scrollTop ?? 0] as const);
   const pageY = window.scrollY;
-  root.innerHTML = html;
+  root.innerHTML = html + (showGuide ? renderGuide() : '');
   for (const [id, top] of scrolls) {
     const el = document.getElementById(id);
     if (el) el.scrollTop = top;
@@ -370,7 +424,14 @@ root.addEventListener('click', (event) => {
   const el = (event.target as HTMLElement).closest<HTMLElement>('[data-action]');
   if (!el) return;
   const { action } = el.dataset;
+  // Clicks inside the guide's dialog shouldn't fall through to the backdrop that closes it.
+  if (action === 'close-guide' && el.classList.contains('guide-overlay') && (event.target as HTMLElement).closest('[data-stop]')) return;
   switch (action) {
+    case 'open-guide':
+    case 'close-guide':
+      showGuide = action === 'open-guide';
+      render();
+      break;
     case 'choose-deck':
       chosenDeck = [...STARTER_DECKS, ...customDecks.map(toDeckDef)].find((d) => d.id === el.dataset.deck) ?? null;
       render();
@@ -445,9 +506,24 @@ root.addEventListener('click', (event) => {
   }
 });
 
+/** While one of your creatures is selected, hovering an enemy lane it can attack previews the result. */
+function showAttackPreview(target: HTMLElement) {
+  if (!state || selection?.kind !== 'creature' || !isMyTurn()) return;
+  const cell = target.closest<HTMLElement>('[data-action="cell"]');
+  const hint = root.querySelector('.hint');
+  if (!cell || !hint || Number(cell.dataset.player) !== RIVAL) return;
+  const sel = selection;
+  const action = getLegalActions(state).find(
+    (a): a is Extract<Action, { type: 'attack' }> =>
+      a.type === 'attack' && a.lane === sel.lane && a.row === sel.row && a.targetLane === Number(cell.dataset.lane),
+  );
+  if (action) hint.innerHTML = previewAttack(action);
+}
+
 // Hovering (or tapping) a card on the board shows it in the details panel. Only the panel is
 // updated, so the board isn't redrawn under the pointer.
 root.addEventListener('mouseover', (event) => {
+  showAttackPreview(event.target as HTMLElement);
   const el = (event.target as HTMLElement).closest<HTMLElement>('[data-inspect]');
   if (!el || !state || el.dataset.inspect === inspectKey) return;
   inspectKey = el.dataset.inspect!;
@@ -480,6 +556,11 @@ root.addEventListener('change', (event) => {
 });
 
 document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && showGuide) {
+    showGuide = false;
+    render();
+    return;
+  }
   if (event.key === 'Escape' && selection) {
     selection = null;
     render();

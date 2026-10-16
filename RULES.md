@@ -68,20 +68,32 @@ A creature's single **Power Level** is both its attack and its health. Damage re
 - Each creature can attack **once per turn**, and only the lane **directly opposite**.
 - The player chooses which creatures attack and in what order.
 
+### Stances: Guarding and Exposed
+Every creature is either **Guarding** or **Exposed**:
+- A creature that **attacked on its owner's last turn** is **Exposed** until its owner's next turn begins. It's off-balance.
+- Every other creature is **Guarding**, including creatures that were just played.
+
+Stances decide **who strikes first** when a front creature is attacked:
+- **Defender Exposed:** the attacker strikes first. If the defender survives, it hits back with the Power Level it has left.
+- **Defender Guarding:** the defender strikes first. If the attacker survives, it then hits with the Power Level it has left. If it doesn't survive, it deals no damage.
+- **First Strike:** an attacker with First Strike always strikes first, even against a Guarding defender.
+- **Ranged from the back row:** never hit back, whatever the stance.
+
+This makes every turn a choice: attack now and be Exposed on the enemy's turn, or hold back and stay Guarding.
+
 ### Resolving an attack
 Damage flows through the opposing lane in this order:
 
 **front creature → back creature → crystal**
 
-1. The attacker deals damage equal to its PL.
-2. The front defender takes damage. Any **overflow** beyond its PL passes to the back creature, then to the crystal.
-3. **Retaliation:** if the attack hit a front creature, that creature deals its PL (as it was **before** the attack) back to the attacker at the same time. Only the front creature retaliates, even if overflow damage hits the back creature.
-4. If the lane is empty, the full damage goes to the crystal.
-5. Attacking a crystal costs the attacker nothing.
+1. Work out who strikes first (see Stances).
+2. The attacker's damage is its PL at the moment it strikes, plus any bonuses. The front defender takes it, and any **overflow** passes to the back creature, then to the crystal.
+3. Only the front creature ever strikes the attacker, even if overflow hits the back creature.
+4. If the lane is empty, the full damage goes to the crystal, and the attacker takes nothing.
 
-**Example:** a Goblin Chief (PL 8) attacks a lane with a Skeleton (PL 5) in front and a Wisp (PL 2) behind.
-- The Skeleton takes 5 and is destroyed. 3 overflows to the Wisp, which takes 2 and is destroyed. 1 overflows to the crystal.
-- The Skeleton retaliates for 5, leaving the Goblin Chief at PL 3.
+**Example 1 (Exposed defender):** a Great Bear (PL 8) attacks a lane with an Exposed Footman (PL 5) in front and a Wisp (PL 2) behind. The Bear strikes first: the Footman takes 5 and is destroyed, the Wisp takes 2 and is destroyed, and 1 overflows to the crystal. The Footman never hits back, so the Bear stays at PL 8.
+
+**Example 2 (Guarding defender):** the same Bear attacks a Guarding Footman (PL 5). The Footman strikes first, leaving the Bear at PL 3. The Bear then hits for 3, leaving the Footman at PL 2.
 
 ### Destroyed crystals
 Destroying a crystal removes **only the crystal**. The lane stays in play for both players: you can still play creatures, traps and relics there and attack from it.
@@ -153,7 +165,7 @@ If a player must draw with an empty deck, their **weakest crystal** (lowest HP) 
 | **Ranged** | Can attack from the back row. Takes no retaliation when attacking from the back row. |
 | **Shield** | Blocks the first hit completely (including overflow), then loses Shield. |
 | **Pierce** | Overflow damage skips the back creature and goes straight to the crystal. |
-| **First Strike** | Deals its damage first. If the defender is destroyed, there is no retaliation. |
+| **First Strike** | Always strikes first when attacking, even against a Guarding defender. |
 
 ## 13. Winning
 

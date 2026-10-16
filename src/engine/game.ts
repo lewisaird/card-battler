@@ -101,6 +101,15 @@ export function locate(state: GameState, uid: number): { player: PlayerId; lane:
   return null;
 }
 
+/**
+ * Stances: a creature that attacked on its owner's most recent turn is Exposed until its owner's
+ * next turn begins, so attackers strike it first. Every other creature is Guarding and strikes first.
+ */
+export function isExposed(state: GameState, owner: PlayerId, c: Creature): boolean {
+  const ownersLastTurn = state.active === owner ? state.turn : state.turn - 1;
+  return c.attackedTurn === ownersLastTurn;
+}
+
 function heal(c: Creature, amount: number) {
   c.damage = Math.max(0, c.damage - amount);
 }
@@ -705,18 +714,30 @@ function resolveAttack(state: GameState, lane: LaneIndex, row: Row, targetLane: 
   }
 
   const mySide = state.players[me].lanes[lane];
-  const damage = power(attacker) + synergyAmount(mySide, row, 'strike') + laneRelicAmount(mySide, 'laneStrike');
+  const bonus = synergyAmount(mySide, row, 'strike') + laneRelicAmount(mySide, 'laneStrike');
+  const pierce = hasKeyword(attacker, 'Pierce');
   const front = defSide.front;
-  // Ranged creatures only avoid retaliation when attacking from the back row.
-  const safeFromBack = row === 'back' && hasKeyword(attacker, 'Ranged');
-  let retaliation = front && !safeFromBack ? power(front) : 0;
 
-  damageLane(state, opp, targetLane, damage, hasKeyword(attacker, 'Pierce'));
+  // Ranged creatures attacking from the back row are never hit back.
+  if (!front || (row === 'back' && hasKeyword(attacker, 'Ranged'))) {
+    damageLane(state, opp, targetLane, power(attacker) + bonus, pierce);
+    return;
+  }
 
-  if (hasKeyword(attacker, 'First Strike') && front && power(front) <= 0) retaliation = 0;
-  if (retaliation > 0) {
-    log(state, `${creatureCard(front!.cardId).name} strikes back for ${retaliation}.`);
-    damageCreatureAt(state, me, lane, row, retaliation);
+  const frontName = creatureCard(front.cardId).name;
+  const attackerFirst = isExposed(state, opp, front) || hasKeyword(attacker, 'First Strike');
+  if (attackerFirst) {
+    // The attacker strikes first; a surviving defender hits back with what it has left.
+    damageLane(state, opp, targetLane, power(attacker) + bonus, pierce);
+    if (power(front) > 0) {
+      log(state, `${frontName} strikes back for ${power(front)}.`);
+      damageCreatureAt(state, me, lane, row, power(front));
+    }
+  } else {
+    // A Guarding defender strikes first; a surviving attacker then hits with what it has left.
+    log(state, `🛡 ${frontName} is guarding and strikes first for ${power(front)}.`);
+    damageCreatureAt(state, me, lane, row, power(front));
+    if (power(attacker) > 0) damageLane(state, opp, targetLane, power(attacker) + bonus, pierce);
   }
 }
 

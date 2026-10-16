@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { chooseAction, chooseMulligan } from './ai';
 import { deckProblems, deckWarnings, STARTER_DECKS } from './decks';
 import { CRYSTAL_HP } from './rules';
-import { applyAction, attackTargets, createGame, power, spawnCreature, validate } from './game';
+import { applyAction, attackTargets, createGame, isExposed, power, spawnCreature, validate } from './game';
 import type { GameState, PlayerId } from './types';
 
 /** A game past the mulligan, on turn 3 with player 0 active and plenty of energy. */
@@ -36,10 +36,11 @@ function ready(state: GameState, player: PlayerId, lane: 0 | 1 | 2, cardId: stri
 }
 
 describe('combat', () => {
-  it('overflows front → back → crystal, and only the front creature retaliates', () => {
+  it('attacking an Exposed defender: the attacker strikes first and overflows front → back → crystal', () => {
     const state = setup();
     const attacker = ready(state, 0, 0, 'great-bear'); // PL 8
-    ready(state, 1, 0, 'footman', 2); // PL 5
+    const footman = ready(state, 1, 0, 'footman', 2); // PL 5
+    footman.attackedTurn = state.turn - 1; // it attacked on its owner's last turn
     ready(state, 1, 0, 'ember-wisp'); // PL 2
     applyAction(state, { type: 'attack', lane: 0, row: 'front', targetLane: 0 });
 
@@ -47,7 +48,49 @@ describe('combat', () => {
     expect(enemy.front).toBeNull();
     expect(enemy.back).toBeNull();
     expect(enemy.crystal).toBe(CRYSTAL_HP - 1);
+    expect(power(attacker)).toBe(8); // the footman died before it could hit back
+  });
+
+  it('an Exposed defender that survives hits back with what it has left', () => {
+    const state = setup();
+    const attacker = ready(state, 0, 0, 'footman'); // PL 3
+    const bear = ready(state, 1, 0, 'great-bear'); // PL 8
+    bear.attackedTurn = state.turn - 1;
+    applyAction(state, { type: 'attack', lane: 0, row: 'front', targetLane: 0 });
+    expect(power(bear)).toBe(5);
+    expect(state.players[0].lanes[0].front).toBeNull();
+    expect(power(attacker)).toBe(0);
+  });
+
+  it('a Guarding defender strikes first, and the attacker hits with what it has left', () => {
+    const state = setup();
+    const attacker = ready(state, 0, 0, 'great-bear'); // PL 8
+    const footman = ready(state, 1, 0, 'footman', 2); // PL 5, Guarding
+    applyAction(state, { type: 'attack', lane: 0, row: 'front', targetLane: 0 });
     expect(power(attacker)).toBe(3);
+    expect(power(footman)).toBe(2);
+    expect(state.players[1].lanes[0].crystal).toBe(CRYSTAL_HP);
+  });
+
+  it('an attacker destroyed by a Guarding defender deals no damage', () => {
+    const state = setup();
+    ready(state, 0, 0, 'footman'); // PL 3
+    const bear = ready(state, 1, 0, 'great-bear'); // PL 8, Guarding
+    applyAction(state, { type: 'attack', lane: 0, row: 'front', targetLane: 0 });
+    expect(state.players[0].lanes[0].front).toBeNull();
+    expect(power(bear)).toBe(8);
+  });
+
+  it('a creature is Exposed after attacking until its next turn', () => {
+    const state = setup();
+    const wolf = ready(state, 0, 0, 'wolf');
+    expect(isExposed(state, 0, wolf)).toBe(false);
+    applyAction(state, { type: 'attack', lane: 0, row: 'front', targetLane: 0 });
+    expect(isExposed(state, 0, wolf)).toBe(true);
+    applyAction(state, { type: 'endTurn' });
+    expect(isExposed(state, 0, wolf)).toBe(true); // still Exposed during the opponent's turn
+    applyAction(state, { type: 'endTurn' });
+    expect(isExposed(state, 0, wolf)).toBe(false); // Guarding again on its owner's next turn
   });
 
   it('ranged attackers take no retaliation', () => {
